@@ -1,0 +1,17 @@
+[project]
+name = "triple-tikitaka"
+version = "0.1.0"
+description = "agentic birdclef2025"
+authors = [
+    {name = "Your Name",email = "you@example.com"}
+]
+requires-python = ">=3.14"
+dependencies = [
+]
+
+[tool.poetry]
+package-mode = false
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

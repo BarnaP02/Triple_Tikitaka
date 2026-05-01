@@ -1,0 +1,25 @@
+# Dataset and models (managed by DVC)
+/dataset
+/models
+
+# Virtual environment
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+logs/
+*.log
+
+# OS
+.directory
+.DS_Store
+
+# Secrets
+*.env
