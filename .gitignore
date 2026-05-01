@@ -23,3 +23,9 @@ logs/
 
 # Secrets
 *.env
+
+# MLflow local data
+mlflow_data/
+
+# Docker
+.env
