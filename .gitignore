@@ -29,3 +29,7 @@ mlflow_data/
 
 # Docker
 .env
+
+# MLflow
+mlruns/
+mlflow_data/
