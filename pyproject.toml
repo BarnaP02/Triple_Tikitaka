@@ -19,7 +19,10 @@ dependencies = [
     "tqdm (>=4.67.3,<5.0.0)",
     "mlflow (>=3.11.1,<4.0.0)",
     "torchcodec (>=0.11.1,<0.12.0)",
-    "dvc (>=3.67.1,<4.0.0)"
+    "dvc (>=3.67.1,<4.0.0)",
+    "fastapi (>=0.115.0,<1.0.0)",
+    "uvicorn[standard] (>=0.34.0,<1.0.0)",
+    "python-multipart (>=0.0.20,<1.0.0)"
 ]
 
 [tool.poetry]
