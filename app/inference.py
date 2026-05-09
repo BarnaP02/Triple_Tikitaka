@@ -21,7 +21,7 @@ HOP_LENGTH       = 320
 N_MELS           = 128
 F_MIN            = 50
 F_MAX            = 16_000
-DETECT_THRESHOLD = 0.1
+DETECT_THRESHOLD = 0.5
 
 _default_checkpoint = Path(__file__).parent.parent / "models" / "best_model.pth"
 CHECKPOINT_PATH = os.getenv("MODEL_PATH", str(_default_checkpoint))
@@ -131,13 +131,17 @@ def _research_species(detected: dict[str, float], user_context: str) -> str:
         f"{_display_name(code)} — {prob:.2%}"
         for code, prob in sorted(detected.items(), key=lambda x: -x[1])
     )
+    context_line = f"Context provided by the user: {user_context}" if user_context else "No context was provided about the recording location or situation."
     prompt = (
-        f"I recorded bird calls in Colombia. My ML model detected the following species "
+        f"An animal sound classifier detected the following species in an audio recording "
         f"(species: confidence): {species_list}.\n\n"
-        f"User context: {user_context}\n\n"
-        f"Research these species and give your opinion on whether they can plausibly coexist "
-        f"in Colombia. Consider their typical habitats, ranges, and whether the combination "
-        f"makes ecological sense. Be concise and specific."
+        f"{context_line}\n\n"
+        f"Research these species and assess whether the detections are plausible given the context. "
+        f"Consider the native range and typical habitat of each species, and whether they could "
+        f"realistically be present in the location or situation described — for example, a zoo or "
+        f"wildlife sanctuary could legitimately have species far outside their natural range. "
+        f"If no location context is given, focus on whether the combination of species makes "
+        f"ecological sense together. Be concise and specific."
     )
 
     response = _get_gemini_client().models.generate_content(

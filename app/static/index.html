@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Triple Tikitaka — Bird Call Classifier</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -215,7 +216,17 @@
       font-size: 0.9rem;
       line-height: 1.7;
       color: #cbd5e1;
-      white-space: pre-wrap;
+    }
+
+    .analysis-text p { margin-bottom: 0.75rem; }
+    .analysis-text p:last-child { margin-bottom: 0; }
+    .analysis-text ul, .analysis-text ol { padding-left: 1.4rem; margin-bottom: 0.75rem; }
+    .analysis-text li { margin-bottom: 0.25rem; }
+    .analysis-text strong { color: #e2e8f0; }
+    .analysis-text h1, .analysis-text h2, .analysis-text h3 {
+      color: #e2e8f0;
+      font-size: 0.95rem;
+      margin: 1rem 0 0.4rem;
     }
 
     /* Loading */
@@ -403,7 +414,7 @@
 
       if (mode === 'analyze') {
         analysisSection.style.display = 'block';
-        analysisText.textContent = data.analysis;
+        analysisText.innerHTML = marked.parse(data.analysis);
       }
     } catch (err) {
       showError(err.message);
