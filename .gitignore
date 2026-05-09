@@ -33,3 +33,6 @@ mlflow_data/
 # MLflow
 mlruns/
 mlflow_data/
+
+# Claude eAPI
+.env

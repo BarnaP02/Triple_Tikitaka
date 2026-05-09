@@ -1,21 +1,24 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, Form, UploadFile
 import os
 import tempfile
 from pathlib import Path
 
+from google import genai
+from google.genai import types
 import timm
 import torch
 import torchaudio
 import torchaudio.transforms as T
 
-SAMPLE_RATE    = 32_000
-CHUNK_DURATION = 5
-CHUNK_SAMPLES  = SAMPLE_RATE * CHUNK_DURATION
-N_FFT          = 1024
-HOP_LENGTH     = 320
-N_MELS         = 128
-F_MIN          = 50
-F_MAX          = 16_000
+SAMPLE_RATE      = 32_000
+CHUNK_DURATION   = 5
+CHUNK_SAMPLES    = SAMPLE_RATE * CHUNK_DURATION
+N_FFT            = 1024
+HOP_LENGTH       = 320
+N_MELS           = 128
+F_MIN            = 50
+F_MAX            = 16_000
+DETECT_THRESHOLD = 0.1
 
 _default_checkpoint = Path(__file__).parent.parent / "models" / "best_model.pth"
 CHECKPOINT_PATH = os.getenv("MODEL_PATH", str(_default_checkpoint))
@@ -44,19 +47,20 @@ model.load_state_dict(checkpoint["model_state"])
 model.to(device)
 model.eval()
 
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+_gemini_client: genai.Client | None = None
 
 
-@app.post("/predict")
-async def predict(file: UploadFile = File(...)):
-    suffix = os.path.splitext(file.filename)[1] if file.filename else ".ogg"
+def _get_gemini_client() -> genai.Client:
+    global _gemini_client
+    if _gemini_client is None:
+        _gemini_client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+    return _gemini_client
+
+
+def _load_waveform(file_bytes: bytes, suffix: str) -> torch.Tensor:
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        tmp.write(await file.read())
+        tmp.write(file_bytes)
         tmp_path = tmp.name
-
     try:
         waveform, sr = torchaudio.load(tmp_path)
     finally:
@@ -66,8 +70,10 @@ async def predict(file: UploadFile = File(...)):
         waveform = torchaudio.functional.resample(waveform, sr, SAMPLE_RATE)
     if waveform.shape[0] > 1:
         waveform = waveform.mean(dim=0, keepdim=True)
+    return waveform
 
-    # Pad the last chunk if the audio doesn't divide evenly into 5s
+
+def _run_inference(waveform: torch.Tensor) -> dict[str, float]:
     total_samples = waveform.shape[1]
     remainder = total_samples % CHUNK_SAMPLES
     if remainder:
@@ -84,9 +90,58 @@ async def predict(file: UploadFile = File(...)):
         probs  = torch.sigmoid(model(mel_db))                 # (n_chunks, num_classes)
         max_probs = probs.max(dim=0).values.cpu().numpy()     # (num_classes,)
 
+    return {idx2label[i]: round(float(max_probs[i]), 4) for i in range(num_classes)}
+
+
+def _research_species(detected: dict[str, float], user_context: str) -> str:
+    species_list = ", ".join(
+        f"{name} ({prob:.2%})" for name, prob in sorted(detected.items(), key=lambda x: -x[1])
+    )
+    prompt = (
+        f"I recorded bird calls in Colombia. My ML model detected the following species "
+        f"(name: confidence): {species_list}.\n\n"
+        f"User context: {user_context}\n\n"
+        f"Research these species and give your opinion on whether they can plausibly coexist "
+        f"in Colombia. Consider their typical habitats, ranges, and whether the combination "
+        f"makes ecological sense. Be concise and specific."
+    )
+
+    response = _get_gemini_client().models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            tools=[types.Tool(google_search=types.GoogleSearch())]
+        ),
+    )
+    return response.text
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
+@app.post("/predict")
+async def predict(file: UploadFile = File(...)):
+    suffix = os.path.splitext(file.filename)[1] if file.filename else ".ogg"
+    file_bytes = await file.read()
+    waveform = _load_waveform(file_bytes, suffix)
+    predictions = _run_inference(waveform)
+    return {"predictions": predictions}
+
+
+@app.post("/analyze")
+async def analyze(file: UploadFile = File(...), context: str = Form("")):
+    suffix = os.path.splitext(file.filename)[1] if file.filename else ".ogg"
+    file_bytes = await file.read()
+    waveform = _load_waveform(file_bytes, suffix)
+    predictions = _run_inference(waveform)
+
+    detected = {name: prob for name, prob in predictions.items() if prob >= DETECT_THRESHOLD}
+    analysis = _research_species(detected, context) if detected else "No species detected above threshold."
+
     return {
-        "predictions": {
-            idx2label[i]: round(float(max_probs[i]), 4)
-            for i in range(num_classes)
-        }
+        "predictions": predictions,
+        "detected_above_threshold": detected,
+        "analysis": analysis,
     }
