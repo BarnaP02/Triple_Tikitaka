@@ -2,10 +2,15 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-RUN pip install poetry
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libsndfile1 ffmpeg libgomp1 && \
+    rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml poetry.lock poetry.toml ./
-RUN poetry install --no-root --no-interaction
+RUN pip install poetry && \
+    poetry config virtualenvs.create false
+
+COPY pyproject.toml poetry.lock ./
+RUN poetry install --no-root --no-interaction --only main
 
 COPY app/ .
 

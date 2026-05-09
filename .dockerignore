@@ -1,0 +1,12 @@
+dataset/
+models/
+.venv/
+notebooks/
+mlflow_data/
+mlruns/
+.git/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+.dvc/cache/
