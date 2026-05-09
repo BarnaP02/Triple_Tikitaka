@@ -1,6 +1,7 @@
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+import csv
 import os
 import tempfile
 from pathlib import Path
@@ -24,6 +25,21 @@ DETECT_THRESHOLD = 0.1
 
 _default_checkpoint = Path(__file__).parent.parent / "models" / "best_model.pth"
 CHECKPOINT_PATH = os.getenv("MODEL_PATH", str(_default_checkpoint))
+
+_default_train_csv = Path(__file__).parent.parent / "dataset" / "birdclef-2025" / "train.csv"
+TRAIN_CSV_PATH = os.getenv("TRAIN_CSV_PATH", str(_default_train_csv))
+
+# code -> {"common_name": ..., "scientific_name": ...}
+_species_meta: dict[str, dict[str, str]] = {}
+if Path(TRAIN_CSV_PATH).exists():
+    with open(TRAIN_CSV_PATH, newline="") as _f:
+        for _row in csv.DictReader(_f):
+            _code = _row["primary_label"]
+            if _code not in _species_meta:
+                _species_meta[_code] = {
+                    "common_name": _row["common_name"],
+                    "scientific_name": _row["scientific_name"],
+                }
 
 app = FastAPI()
 
@@ -103,13 +119,21 @@ def _run_inference(waveform: torch.Tensor) -> dict[str, float]:
     return {idx2label[i]: round(float(max_probs[i]), 4) for i in range(num_classes)}
 
 
+def _display_name(code: str) -> str:
+    meta = _species_meta.get(code)
+    if meta:
+        return f"{meta['common_name']} ({meta['scientific_name']})"
+    return code
+
+
 def _research_species(detected: dict[str, float], user_context: str) -> str:
     species_list = ", ".join(
-        f"{name} ({prob:.2%})" for name, prob in sorted(detected.items(), key=lambda x: -x[1])
+        f"{_display_name(code)} — {prob:.2%}"
+        for code, prob in sorted(detected.items(), key=lambda x: -x[1])
     )
     prompt = (
         f"I recorded bird calls in Colombia. My ML model detected the following species "
-        f"(name: confidence): {species_list}.\n\n"
+        f"(species: confidence): {species_list}.\n\n"
         f"User context: {user_context}\n\n"
         f"Research these species and give your opinion on whether they can plausibly coexist "
         f"in Colombia. Consider their typical habitats, ranges, and whether the combination "
@@ -131,13 +155,25 @@ def health():
     return {"status": "ok"}
 
 
+def _enrich(predictions: dict[str, float]) -> list[dict]:
+    return [
+        {
+            "code": code,
+            "common_name": _species_meta.get(code, {}).get("common_name", code),
+            "scientific_name": _species_meta.get(code, {}).get("scientific_name", ""),
+            "probability": prob,
+        }
+        for code, prob in sorted(predictions.items(), key=lambda x: -x[1])
+    ]
+
+
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     suffix = os.path.splitext(file.filename)[1] if file.filename else ".ogg"
     file_bytes = await file.read()
     waveform = _load_waveform(file_bytes, suffix)
     predictions = _run_inference(waveform)
-    return {"predictions": predictions}
+    return {"predictions": _enrich(predictions)}
 
 
 @app.post("/analyze")
@@ -147,11 +183,11 @@ async def analyze(file: UploadFile = File(...), context: str = Form("")):
     waveform = _load_waveform(file_bytes, suffix)
     predictions = _run_inference(waveform)
 
-    detected = {name: prob for name, prob in predictions.items() if prob >= DETECT_THRESHOLD}
+    detected = {code: prob for code, prob in predictions.items() if prob >= DETECT_THRESHOLD}
     analysis = _research_species(detected, context) if detected else "No species detected above threshold."
 
     return {
-        "predictions": predictions,
-        "detected_above_threshold": detected,
+        "predictions": _enrich(predictions),
+        "detected_above_threshold": _enrich(detected),
         "analysis": analysis,
     }

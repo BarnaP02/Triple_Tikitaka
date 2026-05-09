@@ -7,8 +7,12 @@ services:
       - ./app:/app
       - ./models:/models
       - ./configs:/configs
+      - ./dataset/birdclef-2025/train.csv:/dataset/train.csv:ro
     environment:
       - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI}
+      - MODEL_PATH=/models/best_model.pth
+      - TRAIN_CSV_PATH=/dataset/train.csv
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
     depends_on:
       - mlflow
 
