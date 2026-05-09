@@ -1,4 +1,6 @@
 from fastapi import FastAPI, File, Form, UploadFile
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 import os
 import tempfile
 from pathlib import Path
@@ -24,6 +26,14 @@ _default_checkpoint = Path(__file__).parent.parent / "models" / "best_model.pth"
 CHECKPOINT_PATH = os.getenv("MODEL_PATH", str(_default_checkpoint))
 
 app = FastAPI()
+
+_static = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=_static), name="static")
+
+
+@app.get("/")
+def index():
+    return FileResponse(_static / "index.html")
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

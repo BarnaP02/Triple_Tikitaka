@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Triple Tikitaka — Bird Call Classifier</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      max-width: 780px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 2.5rem;
+    }
+
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #f8fafc;
+      letter-spacing: -0.02em;
+    }
+
+    header p {
+      margin-top: 0.4rem;
+      font-size: 0.9rem;
+      color: #94a3b8;
+    }
+
+    /* Upload zone */
+    .drop-zone {
+      border: 2px dashed #334155;
+      border-radius: 12px;
+      padding: 2.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      position: relative;
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: #6366f1;
+      background: #1e1f2e;
+    }
+
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .drop-zone .icon {
+      font-size: 2.2rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .drop-zone .label {
+      font-size: 0.95rem;
+      color: #94a3b8;
+    }
+
+    .drop-zone .filename {
+      margin-top: 0.8rem;
+      font-size: 0.88rem;
+      color: #6366f1;
+      font-weight: 500;
+      min-height: 1.2em;
+    }
+
+    /* Context */
+    .field {
+      margin-top: 1.25rem;
+    }
+
+    .field label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: #94a3b8;
+      margin-bottom: 0.4rem;
+    }
+
+    .field textarea {
+      width: 100%;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #e2e8f0;
+      font-size: 0.9rem;
+      padding: 0.7rem 0.9rem;
+      resize: vertical;
+      min-height: 80px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .field textarea:focus {
+      border-color: #6366f1;
+    }
+
+    /* Actions */
+    .actions {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1.25rem;
+    }
+
+    button {
+      flex: 1;
+      padding: 0.7rem 1rem;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+
+    button:active { transform: scale(0.98); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+    .btn-predict {
+      background: #1e293b;
+      color: #e2e8f0;
+      border: 1px solid #334155;
+    }
+
+    .btn-analyze {
+      background: #6366f1;
+      color: #fff;
+    }
+
+    /* Results */
+    .results {
+      margin-top: 2rem;
+      display: none;
+    }
+
+    .results.visible { display: block; }
+
+    .results-section {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .results-section h2 {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+      margin-bottom: 1rem;
+    }
+
+    /* Species bars */
+    .species-list { display: flex; flex-direction: column; gap: 0.55rem; }
+
+    .species-row {
+      display: grid;
+      grid-template-columns: 90px 1fr 52px;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.88rem;
+    }
+
+    .species-name {
+      font-family: monospace;
+      color: #c7d2fe;
+      font-size: 0.85rem;
+    }
+
+    .bar-track {
+      background: #0f1117;
+      border-radius: 4px;
+      height: 8px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: #6366f1;
+      transition: width 0.4s ease;
+    }
+
+    .bar-fill.high  { background: #22c55e; }
+    .bar-fill.med   { background: #6366f1; }
+    .bar-fill.low   { background: #475569; }
+
+    .prob-label {
+      text-align: right;
+      color: #94a3b8;
+      font-size: 0.82rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Analysis text */
+    .analysis-text {
+      font-size: 0.9rem;
+      line-height: 1.7;
+      color: #cbd5e1;
+      white-space: pre-wrap;
+    }
+
+    /* Loading */
+    .loader {
+      display: none;
+      align-items: center;
+      gap: 0.6rem;
+      margin-top: 1.5rem;
+      color: #64748b;
+      font-size: 0.88rem;
+    }
+
+    .loader.visible { display: flex; }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid #334155;
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Error */
+    .error-box {
+      display: none;
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      background: #2d1515;
+      border: 1px solid #7f1d1d;
+      border-radius: 8px;
+      color: #fca5a5;
+      font-size: 0.88rem;
+    }
+
+    .error-box.visible { display: block; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Triple Tikitaka</h1>
+    <p>Bird call classifier — BirdCLEF 2025 &middot; Colombia</p>
+  </header>
+
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".ogg,.mp3,.wav,.flac,.m4a" />
+    <div class="icon">🎙️</div>
+    <div class="label">Drop an audio file here or click to browse</div>
+    <div class="filename" id="fileLabel"></div>
+  </div>
+
+  <div class="field">
+    <label for="contextInput">Context <span style="color:#475569;font-weight:400">(optional — location, habitat, elevation…)</span></label>
+    <textarea id="contextInput" placeholder="e.g. Colombian Andes, ~2000 m, humid montane forest edge"></textarea>
+  </div>
+
+  <div class="actions">
+    <button class="btn-predict" id="btnPredict">Predict only</button>
+    <button class="btn-analyze" id="btnAnalyze">Predict + Analyze</button>
+  </div>
+
+  <div class="loader" id="loader">
+    <div class="spinner"></div>
+    <span id="loaderText">Running inference…</span>
+  </div>
+
+  <div class="error-box" id="errorBox"></div>
+
+  <div class="results" id="results">
+    <div class="results-section">
+      <h2>Top detections</h2>
+      <div class="species-list" id="speciesList"></div>
+    </div>
+    <div class="results-section" id="analysisSection" style="display:none">
+      <h2>Analysis</h2>
+      <div class="analysis-text" id="analysisText"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const dropZone   = document.getElementById('dropZone');
+  const fileInput  = document.getElementById('fileInput');
+  const fileLabel  = document.getElementById('fileLabel');
+  const btnPredict = document.getElementById('btnPredict');
+  const btnAnalyze = document.getElementById('btnAnalyze');
+  const loader     = document.getElementById('loader');
+  const loaderText = document.getElementById('loaderText');
+  const errorBox   = document.getElementById('errorBox');
+  const results    = document.getElementById('results');
+  const speciesList    = document.getElementById('speciesList');
+  const analysisSection = document.getElementById('analysisSection');
+  const analysisText   = document.getElementById('analysisText');
+
+  // Drag & drop
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    const f = e.dataTransfer.files[0];
+    if (f) { fileInput.files = e.dataTransfer.files; fileLabel.textContent = f.name; }
+  });
+  fileInput.addEventListener('change', () => {
+    fileLabel.textContent = fileInput.files[0]?.name ?? '';
+  });
+
+  btnPredict.addEventListener('click', () => submit('predict'));
+  btnAnalyze.addEventListener('click', () => submit('analyze'));
+
+  function setLoading(on, msg = '') {
+    [btnPredict, btnAnalyze].forEach(b => b.disabled = on);
+    loader.classList.toggle('visible', on);
+    loaderText.textContent = msg;
+  }
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.classList.add('visible');
+  }
+
+  function clearState() {
+    errorBox.classList.remove('visible');
+    results.classList.remove('visible');
+    analysisSection.style.display = 'none';
+    speciesList.innerHTML = '';
+    analysisText.textContent = '';
+  }
+
+  function barClass(p) {
+    if (p >= 0.5) return 'high';
+    if (p >= 0.1) return 'med';
+    return 'low';
+  }
+
+  function renderPredictions(predictions) {
+    const sorted = Object.entries(predictions)
+      .sort((a, b) => b[1] - a[1])
+      .filter(([, p]) => p >= 0.01)
+      .slice(0, 15);
+
+    speciesList.innerHTML = sorted.map(([name, prob]) => `
+      <div class="species-row">
+        <span class="species-name">${name}</span>
+        <div class="bar-track">
+          <div class="bar-fill ${barClass(prob)}" style="width:${(prob * 100).toFixed(1)}%"></div>
+        </div>
+        <span class="prob-label">${(prob * 100).toFixed(1)}%</span>
+      </div>
+    `).join('');
+
+    results.classList.add('visible');
+  }
+
+  async function submit(mode) {
+    clearState();
+
+    const file = fileInput.files[0];
+    if (!file) { showError('Please select an audio file first.'); return; }
+
+    const form = new FormData();
+    form.append('file', file);
+
+    if (mode === 'analyze') {
+      const ctx = document.getElementById('contextInput').value.trim();
+      form.append('context', ctx);
+      setLoading(true, 'Running inference + Gemini analysis… (may take ~15 s)');
+    } else {
+      setLoading(true, 'Running inference…');
+    }
+
+    try {
+      const res = await fetch(`/${mode}`, { method: 'POST', body: form });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Server error ${res.status}: ${text}`);
+      }
+      const data = await res.json();
+
+      renderPredictions(data.predictions);
+
+      if (mode === 'analyze') {
+        analysisSection.style.display = 'block';
+        analysisText.textContent = data.analysis;
+      }
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+</script>
+</body>
+</html>
