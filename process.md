@@ -141,6 +141,24 @@ To make the Grafana dashboard useful beyond generic HTTP metrics, a custom Prome
 
 ---
 
+## Step 11 — Example audio files and targeted DVC pull (`examples: add labelled and unlabelled audio samples for demo`)
+
+Two usability issues were identified for anyone cloning the repo fresh:
+
+**`dvc pull` downloads the entire dataset.** The original README instructed users to run `dvc pull`, which would pull both `models/` and `dataset/` — the latter being tens of GB of training audio that the app never needs at runtime. The README was updated to use two targeted commands instead:
+```bash
+dvc pull models/best_model.pth
+dvc pull dataset/birdclef-2025/train.csv
+```
+
+**No audio files to test with after setup.** Without the full dataset, a freshly cloned repo has nothing to upload to the app. An `examples/` directory was added with 6.4 MB of audio committed directly to git (no DVC):
+- `examples/labelled/` — 5 recordings from the training set, one per species, renamed from their dataset codes to their common names (e.g. `Saffron_Finch.ogg`, `Streaked_Flycatcher.ogg`). These are drawn from `test_manifest.csv` so they are held-out recordings the model was not trained on.
+- `examples/unlabelled/` — 5 of the smallest `train_soundscapes` files (~435 KB each), real field recordings without ground-truth labels, useful for exploring what the model picks up in a natural soundscape.
+
+The labelled files were selected by iterating `test_manifest.csv` for the first five unique species codes and looking up their common names from `train.csv`. The renaming makes it immediately clear to a new user what ground truth to expect when uploading.
+
+---
+
 ## Lessons learned
 
 - **Free-tier API quotas are project-scoped, not key-scoped.** Creating a new API key in the same Google Cloud project does not fix a zero-quota situation. The fix was to get a key from Google AI Studio directly, which auto-provisions free-tier quotas, or to switch to a model (`gemini-2.5-flash`) that had quota on the existing project.
