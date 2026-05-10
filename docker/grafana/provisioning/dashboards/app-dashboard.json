@@ -120,6 +120,32 @@
       ],
       "title": "Total Requests by Endpoint (24h)",
       "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 5 },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 16 },
+      "id": 5,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["last"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "species_detections_total{job=\"birdclef-app\"}",
+          "legendFormat": "{{ common_name }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Species Detections ≥70% (cumulative count)",
+      "type": "timeseries"
     }
   ],
   "refresh": "10s",

@@ -2,6 +2,7 @@ from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_client import Counter
 import csv
 import os
 import tempfile
@@ -22,7 +23,14 @@ HOP_LENGTH       = 320
 N_MELS           = 128
 F_MIN            = 50
 F_MAX            = 16_000
-DETECT_THRESHOLD = 0.5
+DETECT_THRESHOLD   = 0.5
+METRIC_THRESHOLD   = 0.7
+
+species_detections = Counter(
+    "species_detections_total",
+    "Number of times a species was predicted with ≥70% confidence",
+    ["species_code", "common_name"],
+)
 
 _default_checkpoint = Path(__file__).parent.parent / "models" / "best_model.pth"
 CHECKPOINT_PATH = os.getenv("MODEL_PATH", str(_default_checkpoint))
@@ -173,12 +181,22 @@ def _enrich(predictions: dict[str, float]) -> list[dict]:
     ]
 
 
+def _record_detections(predictions: dict[str, float]) -> None:
+    for code, prob in predictions.items():
+        if prob >= METRIC_THRESHOLD:
+            species_detections.labels(
+                species_code=code,
+                common_name=_species_meta.get(code, {}).get("common_name", code),
+            ).inc()
+
+
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     suffix = os.path.splitext(file.filename)[1] if file.filename else ".ogg"
     file_bytes = await file.read()
     waveform = _load_waveform(file_bytes, suffix)
     predictions = _run_inference(waveform)
+    _record_detections(predictions)
     return {"predictions": _enrich(predictions)}
 
 
@@ -188,6 +206,7 @@ async def analyze(file: UploadFile = File(...), context: str = Form("")):
     file_bytes = await file.read()
     waveform = _load_waveform(file_bytes, suffix)
     predictions = _run_inference(waveform)
+    _record_detections(predictions)
 
     detected = {code: prob for code, prob in predictions.items() if prob >= DETECT_THRESHOLD}
     analysis = _research_species(detected, context) if detected else "No species detected above threshold."

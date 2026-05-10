@@ -46,6 +46,17 @@ Open `.env` and fill in:
 
 This syncs dependencies, builds the Docker image, starts all services, and prints the URL once the app is ready. Open it in your browser and you're good to go.
 
+## Services
+
+Once running, the following services are available (default ports, configurable in `.env`):
+
+| Service | URL | Description |
+|---|---|---|
+| App | http://localhost:8000 | Web UI and REST API |
+| Grafana | http://localhost:3000 | Monitoring dashboards |
+| Prometheus | http://localhost:9090 | Metrics scraper |
+| MLflow | http://localhost:5000 | Training experiment tracking |
+
 ## Usage
 
 The web UI has two modes:
