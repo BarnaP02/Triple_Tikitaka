@@ -107,9 +107,37 @@ The original Dockerfile had three issues:
 
 ## Step 8 — Startup script and documentation
 
-`start.sh` was added as a single entry point: checks for `.env` and a running Docker daemon, syncs poetry dependencies, runs `docker compose up -d --build`, and polls the `/health` endpoint until the app is ready, then prints the URL.
+`start.sh` was added as a single entry point: checks for `.env` and a running Docker daemon, syncs poetry dependencies, runs `docker compose up -d --build`, and polls the `/health` endpoint until the app is ready, then prints the URL. It was later moved to `scripts/start.sh`, which required fixing the `cd "$(dirname "$0")"` to `cd "$(dirname "$0")/.."` so it resolves paths relative to the repo root instead of the `scripts/` directory.
 
 `CLAUDE.md` was updated to reflect the current architecture, and `README.md` was written to cover prerequisites, setup, and usage for anyone cloning the repo fresh.
+
+---
+
+## Step 9 — Prometheus metrics and Grafana dashboard (`monitoring: wire up Prometheus metrics and Grafana dashboard`)
+
+The Prometheus and Grafana containers were already defined in `docker-compose.yml` and Prometheus was already configured to scrape the app, but the app exposed no metrics and Grafana had no datasource or dashboards configured.
+
+Three things were added:
+
+**App metrics** — `prometheus-fastapi-instrumentator` was added as a dependency. Two lines in `inference.py` (`Instrumentator().instrument(app).expose(app)`) register a `/metrics` endpoint that automatically tracks HTTP request counts, latency histograms, and response sizes per endpoint.
+
+**Grafana provisioning** — Grafana supports loading datasources and dashboards from YAML/JSON files at startup via `docker/grafana/provisioning/`. Two provisioning files were added:
+- `datasources/prometheus.yml` — auto-configures Prometheus as the default datasource so no manual setup is needed after `docker compose up`
+- `dashboards/dashboards.yml` + `dashboards/app-dashboard.json` — a pre-built dashboard with four panels: request rate by endpoint, request latency (p50/p95/p99), error rate (4xx/5xx), and total requests per endpoint over 24 hours
+
+The Grafana service in `docker-compose.yml` was updated to mount `./docker/grafana/provisioning` into `/etc/grafana/provisioning`.
+
+---
+
+## Step 10 — Per-species detection tracking (`monitoring: add per-species detection counter`)
+
+To make the Grafana dashboard useful beyond generic HTTP metrics, a custom Prometheus counter was added to track how often each species is predicted with high confidence.
+
+**The metric** — `species_detections_total` is a `Counter` with two labels: `species_code` and `common_name`. It is incremented for every species whose predicted probability is ≥ 70% in both `/predict` and `/analyze` calls. The threshold (70%) is separate from `DETECT_THRESHOLD` (50%), which controls which species are sent to the Gemini agent.
+
+**The panel** — a time series panel was added to the Grafana dashboard showing `species_detections_total` as a cumulative staircase: flat between predictions, stepping up by 1 each time a species clears the threshold. The legend table is configured to show the `last` value, which equals the true total count.
+
+**A fix along the way** — the initial panel used `increase(species_detections_total[5m])`, which Prometheus extrapolates across the full window rather than counting discrete events. This produced non-integer values (e.g. 16.8 instead of 2) that grew on their own between predictions. Switching to the raw counter value and `last` aggregation in the legend resolved both issues.
 
 ---
 
@@ -122,3 +150,5 @@ The original Dockerfile had three issues:
 - **Species codes are invisible to general-purpose LLMs.** `compau` means nothing to Gemini. Mapping codes to common and scientific names before passing them to the agent was a necessary step — the quality of the analysis improved significantly once Gemini could actually look the species up.
 
 - **Build context size is easy to overlook.** Without `.dockerignore`, Docker was sending 31 GB of audio files to the daemon on every build. Adding the ignore file reduced the context to ~750 KB and made builds near-instant.
+
+- **`increase()` in Prometheus is not a discrete event counter.** It extrapolates the rate to fill the full query window, producing non-integer and inflated values for infrequent events. For metrics where the raw cumulative count is what matters, querying the counter directly and using `last` as the legend aggregation gives exact, stable numbers.
