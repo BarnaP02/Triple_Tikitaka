@@ -18,11 +18,14 @@ cd Triple_Tikitaka
 poetry install
 ```
 
-**2. Pull the model and dataset from DVC**
+**2. Pull the model and species list from DVC**
 
 ```bash
-dvc pull
+dvc pull models/best_model.pth
+dvc pull dataset/birdclef-2025/train.csv
 ```
+
+The full training dataset is tens of GB and not needed to run the app. These two commands pull only what is required: the trained model and the species name lookup.
 
 **3. Configure environment variables**
 
@@ -56,6 +59,13 @@ Once running, the following services are available (default ports, configurable 
 | Grafana | http://localhost:3000 | Monitoring dashboards |
 | Prometheus | http://localhost:9090 | Metrics scraper |
 | MLflow | http://localhost:5000 | Training experiment tracking |
+
+## Example audio files
+
+The `examples/` directory contains a small set of recordings you can use right after setup:
+
+- `examples/labelled/` — 5 recordings from the training set, renamed to the species' common name (e.g. `Saffron_Finch.ogg`). Upload one and the model should predict that species with high confidence.
+- `examples/unlabelled/` — 5 short soundscape recordings without ground-truth labels, good for exploring what the model picks up in a real field recording.
 
 ## Usage
 
