@@ -9,7 +9,7 @@ Triple Tikitaka is an animal sound classification system for the [BirdCLEF 2025]
 ## Quickstart
 
 ```bash
-./start.sh
+./scripts/start.sh
 ```
 
 Checks `.env`, syncs deps, builds and starts all Docker services, waits for health, then prints the URL. Requires Docker to be running.
@@ -98,12 +98,22 @@ Species names are resolved at startup from `dataset/birdclef-2025/train.csv` (or
 
 The app also serves a single-page web UI at `/` (`app/static/index.html`) with drag-and-drop upload, optional context field, and two modes: predict-only and predict+analyze (renders Gemini markdown response).
 
+Both endpoints also increment the `species_detections_total` Prometheus counter (labels: `species_code`, `common_name`) for every species predicted with ≥ 70% confidence.
+
 #### Key env vars for the app
 | Var | Default | Purpose |
 |---|---|---|
 | `MODEL_PATH` | `models/best_model.pth` | Path to checkpoint |
 | `TRAIN_CSV_PATH` | `dataset/birdclef-2025/train.csv` | Species name lookup |
 | `GOOGLE_API_KEY` | — | Gemini API key (required for `/analyze`) |
+
+### Monitoring
+
+`prometheus-fastapi-instrumentator` is mounted on the FastAPI app and exposes `/metrics`. Prometheus scrapes it every 15 s.
+
+Grafana datasource and dashboard are provisioned automatically from `docker/grafana/provisioning/` — no manual setup needed. The dashboard includes:
+- HTTP request rate, latency (p50/p95/p99), and error rate by endpoint
+- Species detections ≥ 70% confidence — cumulative counter per species shown as a staircase time series
 
 ### Docker
 
