@@ -41,7 +41,7 @@ Open `.env` and fill in:
 ## Running
 
 ```bash
-./start.sh
+./scripts/start.sh
 ```
 
 This syncs dependencies, builds the Docker image, starts all services, and prints the URL once the app is ready. Open it in your browser and you're good to go.
