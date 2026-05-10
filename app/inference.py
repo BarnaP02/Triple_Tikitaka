@@ -1,6 +1,7 @@
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from prometheus_fastapi_instrumentator import Instrumentator
 import csv
 import os
 import tempfile
@@ -42,6 +43,7 @@ if Path(TRAIN_CSV_PATH).exists():
                 }
 
 app = FastAPI()
+Instrumentator().instrument(app).expose(app)
 
 _static = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=_static), name="static")
