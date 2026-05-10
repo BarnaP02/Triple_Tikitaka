@@ -157,16 +157,3 @@ dvc pull dataset/birdclef-2025/train.csv
 
 The labelled files were selected by iterating `test_manifest.csv` for the first five unique species codes and looking up their common names from `train.csv`. The renaming makes it immediately clear to a new user what ground truth to expect when uploading.
 
----
-
-## Lessons learned
-
-- **Free-tier API quotas are project-scoped, not key-scoped.** Creating a new API key in the same Google Cloud project does not fix a zero-quota situation. The fix was to get a key from Google AI Studio directly, which auto-provisions free-tier quotas, or to switch to a model (`gemini-2.5-flash`) that had quota on the existing project.
-
-- **Prompt framing matters as much as model capability.** The first version of the research prompt produced useless answers ("yes, these Colombian species can coexist in Colombia") because the framing assumed a fixed geography. Reframing it to evaluate plausibility *given the user's context* made the agent substantially more useful.
-
-- **Species codes are invisible to general-purpose LLMs.** `compau` means nothing to Gemini. Mapping codes to common and scientific names before passing them to the agent was a necessary step — the quality of the analysis improved significantly once Gemini could actually look the species up.
-
-- **Build context size is easy to overlook.** Without `.dockerignore`, Docker was sending 31 GB of audio files to the daemon on every build. Adding the ignore file reduced the context to ~750 KB and made builds near-instant.
-
-- **`increase()` in Prometheus is not a discrete event counter.** It extrapolates the rate to fill the full query window, producing non-integer and inflated values for infrequent events. For metrics where the raw cumulative count is what matters, querying the counter directly and using `last` as the legend aggregation gives exact, stable numbers.
